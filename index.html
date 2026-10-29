@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" class="dark" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cfstats - Counter Flame AI Anti-Cheat & Stat Analyzer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,800;1,400&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f6f6f6',
+                            100: '#e7e7e7',
+                            200: '#d1d1d1',
+                            300: '#b0b0b0',
+                            400: '#888888',
+                            500: '#6d6d6d',
+                            600: '#5d5d5d',
+                            700: '#4f4f4f',
+                            800: '#454545',
+                            900: '#1d1d1d',
+                            950: '#0a0a0a'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'monospace'],
+                        sans: ['Space Grotesk', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #050505;
+            color: #ececec;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow-x: hidden;
+        }
+
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .mono-card {
+            background: rgba(12, 12, 12, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 15px 50px -10px rgba(0, 0, 0, 0.95);
+        }
+
+        .glow-pulse {
+            animation: pulseGlow 2.5s infinite ease-in-out;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); }
+            50% { box-shadow: 0 0 35px rgba(255, 255, 255, 0.35); border-color: rgba(255, 255, 255, 0.6); }
+        }
+
+        .circle-gauge-bg {
+            fill: none;
+            stroke: #121212;
+            stroke-width: 12;
+        }
+        .circle-gauge-outer {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-width: 2;
+            stroke-dasharray: 4 6;
+            animation: rotateClockwise 30s linear infinite;
+            transform-origin: center;
+        }
+        .circle-gauge-progress {
+            fill: none;
+            stroke-width: 12;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            transition: stroke-dashoffset 0.15s linear, stroke 0.4s ease;
+            filter: drop-shadow(0px 0px 14px currentColor);
+        }
+
+        @keyframes rotateClockwise {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes scanline {
+            0% { top: -5%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 105%; opacity: 0; }
+        }
+        .scanline-effect {
+            position: absolute;
+            left: 0; right: 0; height: 8px;
+            background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+            animation: scanline 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #080808;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-white selection:text-black relative">
+
+    <canvas id="bgCanvas"></canvas>
+
+    <!-- Header -->
+    <header class="border-b border-neutral-800/80 bg-black/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer group" onclick="resetApp()">
+                <div class="w-10 h-10 bg-white text-black font-extrabold flex items-center justify-center rounded-xl text-xl tracking-tighter shadow-lg font-mono group-hover:scale-105 transition-transform">
+                    CF
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-white font-mono flex items-center gap-2">
+                        CFSTATS <span class="text-[10px] px-2 py-0.5 rounded border border-neutral-700 bg-neutral-900 text-neutral-300 font-normal">NEURAL v4.0</span>
+                    </h1>
+                    <p class="text-[10px] text-neutral-400 tracking-widest uppercase font-mono" id="subHeaderTitle">Counter Flame Detector</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div class="hidden sm:flex items-center gap-2 bg-neutral-900/90 border border-neutral-800 rounded-lg px-3 py-1.5 text-xs font-mono">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-neutral-300" id="statusText">System Ready</span>
+                </div>
+
+                <div class="flex items-center bg-neutral-900/90 border border-neutral-700 rounded-xl p-1 font-mono text-xs">
+                    <button onclick="setLanguage('en')" id="btn-en" class="px-2.5 py-1 rounded-lg transition-all bg-white text-black font-bold">EN</button>
+                    <button onclick="setLanguage('pl')" id="btn-pl" class="px-2.5 py-1 rounded-lg transition-all text-neutral-400 hover:text-white">PL</button>
+                    <button onclick="setLanguage('ru')" id="btn-ru" class="px-2.5 py-1 rounded-lg transition-all text-neutral-400 hover:text-white">RU</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-grow w-full z-10">
+        
+        <div class="text-center max-w-3xl mx-auto mb-8 sm:mb-12">
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-neutral-800 bg-neutral-900/90 text-xs font-mono text-neutral-300 mb-4 shadow-inner">
+                <i class="fa-solid fa-microchip text-white animate-pulse"></i>
+                <span id="heroBadge">Dedicated Counter Flame Anti-Cheat Neural Engine</span>
+            </div>
+            <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-4 uppercase font-sans drop-shadow-md" id="heroTitle">
+                Deep Cheat & Stat Verification
+            </h2>
+            <p class="text-neutral-400 text-sm sm:text-base leading-relaxed px-2" id="heroDesc">
+                Upload a player profile screenshot exclusively from Counter Flame. Our neural model performs deep pixel OCR and mathematical anomaly inspection.
+            </p>
+        </div>
+
+        <div class="mb-8 max-w-4xl mx-auto">
+            <div class="p-4 rounded-2xl bg-neutral-950/90 border border-neutral-800/90 backdrop-blur-md flex items-start gap-3.5 shadow-xl">
+                <div class="p-2.5 rounded-xl bg-neutral-900 text-white border border-neutral-700 mt-0.5 shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-400 text-lg"></i>
+                </div>
+                <div class="text-xs text-neutral-400 leading-relaxed font-mono">
+                    <span class="text-white font-bold uppercase block mb-0.5 tracking-wider" id="noticeHeader">Strict Compatibility Requirement</span>
+                    <span id="noticeText">This platform strictly analyzes screenshots from Counter Flame (Mobile) profile card layouts. Do not upload screenshots from other games.</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="workspace">
+            <!-- UPLOAD -->
+            <div id="uploadSection" class="max-w-3xl mx-auto">
+                <div id="dropZone" class="mono-card glow-pulse border-2 border-dashed border-neutral-700/80 hover:border-white rounded-3xl p-8 sm:p-16 text-center cursor-pointer transition-all duration-300 relative overflow-hidden group shadow-2xl">
+                    <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+                    
+                    <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-neutral-900/90 border border-neutral-700/80 flex items-center justify-center text-white text-3xl group-hover:scale-110 group-hover:border-white transition-all shadow-lg">
+                        <i class="fa-solid fa-cloud-arrow-up text-neutral-300 group-hover:text-white"></i>
+                    </div>
+
+                    <h3 class="text-xl font-bold text-white mb-2 font-mono tracking-tight" id="dropTitle">Drop Counter Flame Screenshot Here</h3>
+                    <p class="text-xs text-neutral-400 mb-8 max-w-md mx-auto leading-relaxed" id="dropSubtitle">
+                        Supports PNG, JPG, WEBP formats. Image must clearly display player ID, K/D, Damage, Matches, and Hours.
+                    </p>
+
+                    <div class="flex justify-center">
+                        <button onclick="document.getElementById('fileInput').click()" class="px-8 py-3.5 bg-white text-black font-mono font-bold text-xs rounded-xl hover:bg-neutral-200 transition-all uppercase tracking-wider shadow-lg active:scale-95">
+                            <i class="fa-solid fa-file-image mr-2"></i><span id="btnSelectFile">Browse Screenshot</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOADING / THINKING -->
+            <div id="loadingSection" class="hidden max-w-2xl mx-auto py-6">
+                <div class="mono-card rounded-3xl p-6 sm:p-10 border border-neutral-700 relative overflow-hidden shadow-2xl">
+                    <div class="scanline-effect"></div>
+                    
+                    <div class="w-24 h-24 mx-auto mb-6 rounded-3xl bg-neutral-900 border border-neutral-700 flex items-center justify-center text-white text-4xl relative shadow-inner">
+                        <i class="fa-solid fa-brain animate-pulse text-neutral-200"></i>
+                        <span class="absolute inset-0 rounded-3xl border border-white/20 animate-ping"></span>
+                    </div>
+
+                    <h3 class="text-xl font-mono font-bold text-white mb-1 text-center" id="loadingTitle">AI Deep Thinking in Progress...</h3>
+                    <p class="text-xs font-mono text-emerald-400 mb-6 min-h-[24px] font-semibold tracking-wide text-center" id="currentThinkingStep">Initializing neural weights...</p>
+                    
+                    <div class="w-full bg-neutral-950 rounded-full h-3 overflow-hidden border border-neutral-800 mb-6 p-0.5">
+                        <div id="analysisProgress" class="bg-gradient-to-r from-neutral-400 via-white to-emerald-400 h-full w-0 rounded-full transition-all duration-300 shadow-sm"></div>
+                    </div>
+
+                    <div class="bg-black/95 p-4 rounded-2xl border border-neutral-800/90 text-left font-mono text-[11px] text-neutral-400 space-y-2 h-44 overflow-y-auto shadow-inner" id="thinkingLog"></div>
+                </div>
+            </div>
+
+            <!-- RESULTS -->
+            <div id="resultsSection" class="hidden space-y-8">
+                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+                    <div class="flex items-center gap-3">
+                        <button onclick="resetApp()" class="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 rounded-xl text-xs font-mono text-neutral-200 transition-all active:scale-95">
+                            &larr; <span id="btnBack">New Scan</span>
+                        </button>
+                        <span class="text-neutral-700">|</span>
+                        <span class="text-xs font-mono text-neutral-400" id="analyzedAtLabel">Analyzed just now</span>
+                    </div>
+                    
+                    <button onclick="exportReport()" id="exportBtn" class="px-4 py-2 bg-white text-black hover:bg-neutral-200 font-bold border border-white rounded-xl text-xs font-mono transition-all active:scale-95 shadow-md flex items-center gap-2">
+                        <i class="fa-solid fa-download"></i>
+                        <span id="btnExport">Export Report</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
+                    <!-- Left: Image & Stats -->
+                    <div class="lg:col-span-5 space-y-6">
+                        <div class="mono-card rounded-3xl p-5 border border-neutral-800/90 shadow-xl">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-xs font-mono text-neutral-400 uppercase tracking-wider" id="lblAnalyzedScreenshot">Analyzed Screenshot</h4>
+                                <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-800">Counter Flame UI</span>
+                            </div>
+                            <div class="rounded-2xl overflow-hidden border border-neutral-800 bg-black/90 max-h-64 flex items-center justify-center p-1">
+                                <img id="analyzedImage" src="" alt="Counter Flame Screenshot" class="w-full h-full object-contain rounded-xl">
+                            </div>
+                        </div>
+
+                        <div class="mono-card rounded-3xl p-5 border border-neutral-800/90 shadow-xl">
+                            <h4 class="text-xs font-mono text-neutral-400 uppercase tracking-wider mb-4" id="lblExtractedStats">Extracted Player Stats</h4>
+                            
+                            <div class="space-y-3 font-mono text-xs">
+                                <div class="flex justify-between items-center py-2 border-b border-neutral-800/80">
+                                    <span class="text-neutral-400" id="lblNickname">Nickname / Clan</span>
+                                    <span id="statNick" class="font-bold text-white text-sm">--</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-neutral-800/80">
+                                    <span class="text-neutral-400">Player ID</span>
+                                    <span id="statID" class="font-bold text-white">--</span>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-2.5 pt-2">
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5" id="lblMatches">Matches Played</span>
+                                        <span id="statMatches" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5" id="lblHours">Hours Played</span>
+                                        <span id="statHours" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5">K/D Ratio</span>
+                                        <span id="statKD" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5" id="lblDmgMatch">Dmg / Match</span>
+                                        <span id="statDmg" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5" id="lblKillsMatch">Kills / Match</span>
+                                        <span id="statKillsMatch" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                    <div class="bg-neutral-950/80 p-3 rounded-2xl border border-neutral-800/80">
+                                        <span class="text-[10px] text-neutral-500 block mb-0.5" id="lblDeathsMatch">Deaths / Match</span>
+                                        <span id="statDeathsMatch" class="text-base font-bold text-white">--</span>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 text-neutral-400 text-[11px] font-mono">
+                                    <span>Total Kills: <strong id="statKills" class="text-white">--</strong></span>
+                                    <span>Total Deaths: <strong id="statDeaths" class="text-white">--</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Gauge & Verdict -->
+                    <div class="lg:col-span-7 space-y-6">
+                        <div class="mono-card rounded-3xl p-6 sm:p-8 border border-neutral-800/90 shadow-xl text-center relative overflow-hidden">
+                            <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-8xl font-mono font-extrabold text-white">CF</div>
+                            
+                            <h3 class="text-xs font-mono text-neutral-400 uppercase tracking-widest mb-6" id="lblLegitimacyTitle">Neural Legitimacy Score (Anti-Cheat Index)</h3>
+                            
+                            <div class="relative w-56 h-56 mx-auto mb-6 flex items-center justify-center">
+                                <svg class="w-full h-full" viewBox="0 0 160 160">
+                                    <circle class="circle-gauge-outer" cx="80" cy="80" r="72" />
+                                    <circle class="circle-gauge-bg" cx="80" cy="80" r="62" />
+                                    <circle id="gaugeProgressRing" class="circle-gauge-progress" cx="80" cy="80" r="62" stroke-dasharray="389.5" stroke-dashoffset="389.5" stroke="#10b981" />
+                                </svg>
+            
